@@ -71,7 +71,7 @@ struct guard_type {
 
 bool ON_STA_FILTER(AsyncWebServerRequest *request) {
   #if ESP_IDF_VERSION_MAJOR==5
-  return Network.localIP() == request->client()->localIP();
+  return true; // dirty hack
   #else
   return WiFi.localIP() == request->client()->localIP();
   #endif
@@ -79,7 +79,7 @@ bool ON_STA_FILTER(AsyncWebServerRequest *request) {
 
 bool ON_AP_FILTER(AsyncWebServerRequest *request) {
   #if ESP_IDF_VERSION_MAJOR==5
-  return Network.localIP() != request->client()->localIP();
+  return true; // dirty hack
   #else
   return WiFi.localIP() != request->client()->localIP();
   #endif
