@@ -395,7 +395,7 @@ size_t AsyncAbstractResponse::_ack(AsyncWebServerRequest *request, size_t len, u
           _packet.clear();
           goto content_abort;
       }
-      outLen = sprintf((char*)_packet.data(), "%4x", readLen);
+      outLen = sprintf((char*)_packet.data(), "%04x", readLen);
       //while(outLen < 4) _packet[outLen++] = ' ';
       _packet[outLen++] = '\r';
       _packet[outLen++] = '\n';
