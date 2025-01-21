@@ -46,7 +46,7 @@ struct guard_type {
 #ifdef ESP8266
 #define ASYNCWEBSERVER_MINIMUM_ALLOC 1024
 #else
-#define ASYNCWEBSERVER_MINIMUM_ALLOC 4096
+#define ASYNCWEBSERVER_MINIMUM_ALLOC 2048
 #endif
 #endif
 
@@ -449,7 +449,7 @@ void AsyncWebServer::printStatus(Print& dest){
           print_dest.printf_P(PSTR(" -- Response %X, state %d, [%d %d - %d %d %d]"), (intptr_t) r, r->_state, r->_headLength, r->_contentLength, r->_sentLength, r->_ackedLength, r->_writtenLength);
         }
       }
-      print_dest.println();
+      print_dest.write('\n');
     }
   }
   #ifdef ASYNCWEBSERVER_NEEDS_MUTEX
