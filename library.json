@@ -31,9 +31,9 @@
       "platforms": "espressif8266"
     },
     {
-      "owner": "willmmiles",      
+      "owner": "esp32async",      
       "name": "AsyncTCP",
-      "version": "^1.3.1",
+      "version": "^3.4.6",
       "platforms": "espressif32"
     },
     {
