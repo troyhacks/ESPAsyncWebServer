@@ -211,7 +211,7 @@ class AsyncWebSocketClient {
 
     //control frames
     void close(uint16_t code=0, const char * message=NULL);
-    void ping(uint8_t *data=NULL, size_t len=0);
+    void ping(const void *data=NULL, size_t len=0);
 
     //set auto-ping period in seconds. disabled if zero (default)
     void keepAlivePeriod(uint16_t seconds){
@@ -355,7 +355,7 @@ class AsyncWebSocket: public AsyncWebHandler {
     AsyncWebSocketMessageBuffer* makeBuffer(const uint8_t * data, size_t size)  __attribute__((deprecated));
     void _cleanBuffers() {};
 
-    AsyncWebSocketClientLinkedList getClients() const;
+    const AsyncWebSocketClientLinkedList& getClients() const;
 };
 
 //WebServer response to authenticate the socket and detach the tcp client from the web server request

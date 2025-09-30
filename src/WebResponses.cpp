@@ -388,15 +388,15 @@ size_t AsyncAbstractResponse::_ack(AsyncWebServerRequest *request, size_t len, u
         _packet.clear();
         goto content_abort;
       }      
-      // HTTP 1.1 allows leading zeros in chunk length. Or spaces may be added.
+      // HTTP 1.1 allows leading zeros in chunk length. Trailing spaces breaks http-proxy.
       // See RFC2616 sections 2, 3.6.1.
       readLen = _fillBufferAndProcessTemplates((uint8_t*) (_packet.data() + 6), _packet.size() - 8);
       if(readLen == RESPONSE_TRY_AGAIN){
           _packet.clear();
           goto content_abort;
       }
-      outLen = sprintf((char*)_packet.data(), "%x", readLen);
-      while(outLen < 4) _packet[outLen++] = ' ';
+      outLen = sprintf((char*)_packet.data(), "%04x", readLen);
+      //while(outLen < 4) _packet[outLen++] = ' ';
       _packet[outLen++] = '\r';
       _packet[outLen++] = '\n';
       outLen += readLen;

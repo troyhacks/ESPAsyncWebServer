@@ -124,38 +124,28 @@ static size_t webSocketSendFrame(AsyncClient *client, bool final, uint8_t opcode
 class AsyncWebSocketControl {
   private:
     uint8_t _opcode;
-    uint8_t *_data;
-    size_t _len;
+    DynamicBuffer _buf;
     bool _mask;
     bool _finished;
   public:
-    AsyncWebSocketControl(uint8_t opcode, uint8_t *data=NULL, size_t len=0, bool mask=false)
+    AsyncWebSocketControl(uint8_t opcode, DynamicBuffer buf, bool mask=false)
       :_opcode(opcode)
-      ,_len(len)
-      ,_mask(len && mask)
+      ,_buf(std::move(buf))
+      ,_mask(_buf.size() && mask)
       ,_finished(false)
-  {
-      if(data == NULL)
-        _len = 0;
-      if(_len){
-        if(_len > 125)
-          _len = 125;
-        _data = (uint8_t*)malloc(_len);
-        if(_data == NULL)
-          _len = 0;
-        else memcpy(_data, data, len);
-      } else _data = NULL;
-    }
-    virtual ~AsyncWebSocketControl(){
-      if(_data != NULL)
-        free(_data);
-    }
-    virtual bool finished() const { return _finished; }
+      {}
+
+    AsyncWebSocketControl(uint8_t opcode, const void *data=NULL, size_t len=0, bool mask=false)
+      : AsyncWebSocketControl(opcode, DynamicBuffer(data,len), mask)
+      {}
+
+    ~AsyncWebSocketControl(){}
+    bool finished() const { return _finished; }
     uint8_t opcode(){ return _opcode; }
-    uint8_t len(){ return _len + 2; }
+    uint8_t len(){ return _buf.size() + 2; }
     size_t send(AsyncClient *client){
       _finished = true;
-      return webSocketSendFrame(client, true, _opcode & 0x0F, _mask, _data, _len);
+      return webSocketSendFrame(client, true, _opcode & 0x0F, _mask, reinterpret_cast<uint8_t*>(_buf.data()), _buf.size());
     }
 };
 
@@ -375,12 +365,12 @@ AsyncWebSocketMultiMessage* AsyncWebSocketMultiMessage::clone() const {
 /*
  * Async WebSocket Client
  */
- const char * AWSC_PING_PAYLOAD = "awscPING";
- const size_t AWSC_PING_PAYLOAD_LEN = 8;
+ const char AWSC_PING_PAYLOAD[] PROGMEM = "awscPING";
+ constexpr size_t AWSC_PING_PAYLOAD_LEN = sizeof(AWSC_PING_PAYLOAD);
 
 AsyncWebSocketClient::AsyncWebSocketClient(AsyncWebServerRequest *request, AsyncWebSocket *server)
-  : _controlQueue(LinkedList<AsyncWebSocketControl *>([](AsyncWebSocketControl *c){ delete  c; }))
-  , _messageQueue(LinkedList<AsyncWebSocketMessage *>([](AsyncWebSocketMessage *m){ delete  m; }))
+  : _controlQueue([](AsyncWebSocketControl *c){ delete  c; })
+  , _messageQueue([](AsyncWebSocketMessage *m){ delete  m; })
   , _tempObject(NULL)
 {
   _client = request->client();
@@ -434,7 +424,7 @@ void AsyncWebSocketClient::_onPoll(){
   if(_client->canSend() && (!_controlQueue.isEmpty() || !_messageQueue.isEmpty())){
     _runQueue();
   } else if(_keepAlivePeriod > 0 && _controlQueue.isEmpty() && _messageQueue.isEmpty() && (millis() - _lastMessageTime) >= _keepAlivePeriod){
-    ping((uint8_t *)AWSC_PING_PAYLOAD, AWSC_PING_PAYLOAD_LEN);
+    ping(AWSC_PING_PAYLOAD, AWSC_PING_PAYLOAD_LEN);
   }
 }
 
@@ -495,22 +485,22 @@ void AsyncWebSocketClient::close(uint16_t code, const char * message){
       if(mlen > 123) mlen = 123;
       packetLen += mlen;
     }
-    char * buf = (char*)malloc(packetLen);
-    if(buf != NULL){
+    auto dbuf = DynamicBuffer(packetLen);
+    if(dbuf){
+      char* buf = dbuf.data();
       buf[0] = (uint8_t)(code >> 8);
       buf[1] = (uint8_t)(code & 0xFF);
       if(message != NULL){
         memcpy(buf+2, message, packetLen -2);
       }
-      _queueControl(new AsyncWebSocketControl(WS_DISCONNECT,(uint8_t*)buf,packetLen));
-      free(buf);
+      _queueControl(new AsyncWebSocketControl(WS_DISCONNECT,std::move(dbuf)));
       return;
     }
   }
   _queueControl(new AsyncWebSocketControl(WS_DISCONNECT));
 }
 
-void AsyncWebSocketClient::ping(uint8_t *data, size_t len){
+void AsyncWebSocketClient::ping(const void *data, size_t len){
   if(_status == WS_CONNECTED)
     _queueControl(new AsyncWebSocketControl(WS_PING, data, len));
 }
@@ -854,7 +844,7 @@ uint16_t AsyncWebSocketClient::remotePort() {
 
 AsyncWebSocket::AsyncWebSocket(const String& url)
   :_url(url)
-  ,_clients(LinkedList<AsyncWebSocketClient *>([](AsyncWebSocketClient *c){ delete c; }))
+  ,_clients([](AsyncWebSocketClient *c){ delete c; })
   ,_cNextId(1)
   ,_enabled(true)
 {
@@ -1213,7 +1203,7 @@ AsyncWebSocketMessageBuffer* AsyncWebSocket::makeBuffer(const uint8_t * data, si
   return new AsyncWebSocketMessageBuffer(std::move(buffer));
 }
 
-AsyncWebSocket::AsyncWebSocketClientLinkedList AsyncWebSocket::getClients() const {
+const AsyncWebSocket::AsyncWebSocketClientLinkedList& AsyncWebSocket::getClients() const {
   return _clients;
 }
 

@@ -62,5 +62,5 @@ else
 		BOARD="esp12e"
 		echo "BUILDING ESP8266 EXAMPLES"
 	fi
-	build_pio_sketches "$BOARD" "" "$GITHUB_WORKSPACE/examples"
+	build_pio_sketches "$BOARD" "lib_compat_mode = strict" "$GITHUB_WORKSPACE/examples"
 fi

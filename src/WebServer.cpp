@@ -28,23 +28,16 @@
 #endif
 
 #ifdef ASYNCWEBSERVER_NEEDS_MUTEX
-#ifdef DEBUG_GUARDS
 struct guard_type {
-  std::unique_lock<std::mutex> _lock;
-  size_t _line;
-  guard_type(std::mutex& m, size_t line) : _line(line) {
-    DEBUG_PRINTFP("acquire: %d\n", _line);
-    _lock = decltype(_lock) { m };  // defer construction
+  SemaphoreHandle_t _mtx;
+  guard_type(SemaphoreHandle_t m) : _mtx(m) {
+    xSemaphoreTake(_mtx, portMAX_DELAY);  // todo: error check
   }
   ~guard_type() {    
-    _lock.unlock();
-    DEBUG_PRINTFP("release: %d\n", _line);
+    xSemaphoreGive(_mtx);
   }
 };
-#define guard() const guard_type guard(_mutex, __LINE__)
-#else
-#define guard() const std::lock_guard<std::mutex> guard(_mutex)
-#endif
+#define guard() const guard_type guard(_mutex)
 #else
 #define guard()
 #endif
@@ -53,7 +46,7 @@ struct guard_type {
 #ifdef ESP8266
 #define ASYNCWEBSERVER_MINIMUM_ALLOC 1024
 #else
-#define ASYNCWEBSERVER_MINIMUM_ALLOC 4096
+#define ASYNCWEBSERVER_MINIMUM_ALLOC 2048
 #endif
 #endif
 
@@ -148,6 +141,9 @@ AsyncWebServer::AsyncWebServer(IPAddress addr, uint16_t port, const AsyncWebServ
   , _server(addr, port)
   , _rewrites([](AsyncWebRewrite* r){ delete r; })
   , _handlers([](AsyncWebHandler* h){ delete h; })
+#ifdef ASYNCWEBSERVER_NEEDS_MUTEX
+  , _mutex(xSemaphoreCreateMutex())
+#endif
   , _requestQueue(LinkedList<AsyncWebServerRequest*>::OnRemove {})
   , _queueActive(false)
 {
@@ -436,35 +432,36 @@ void AsyncWebServer::setQueueLimits(const AsyncWebServerQueueLimits& limits) {
   _queueLimits = limits;
 }
 
-static char* append_vprintf_P(char* buf, char* end, const char* /*PROGMEM*/ fmt, ...){
-  va_list argp;
-  va_start(argp, fmt);
-  const auto max = end-buf;
-  const auto needed = vsnprintf_P(buf, max, fmt, argp);
-  va_end(argp);
-  return (needed >= max) ? end-1 : buf + needed;
-}
-
 void AsyncWebServer::printStatus(Print& dest){
-  char buf[1024];
-  char* buf_p = buf;
-  char* end = &buf[sizeof(buf)];
-  buf[0] = 0;
+  dest.print(F("Web server status: "));
+#ifdef ASYNCWEBSERVER_NEEDS_MUTEX
+  // Print to a local buffer while we hold the lock
+  DynamicBuffer dbuf(2048);
+  if (dbuf.size() == 0) {
+    dest.println(F("print buffer failure"));
+    return;
+  };
+  BufferPrint<DynamicBuffer> print_dest(dbuf);
+#else
+  auto& print_dest = dest;
+#endif  
   {
-    guard();  
-    for(const auto& entry: _requestQueue) {
-      buf_p = append_vprintf_P(buf_p, end, PSTR("\n- Request %X [%X], state %d"), (intptr_t) entry, (intptr_t) entry->_client, entry->_parseState);
-      if (entry->_response) {
-        auto r = entry->_response;
-        buf_p = append_vprintf_P(buf_p, end, PSTR(" -- Response %X, state %d, [%d %d - %d %d %d]"), (intptr_t) r, r->_state, r->_headLength, r->_contentLength, r->_sentLength, r->_ackedLength, r->_writtenLength);
+    guard();
+    if (_requestQueue.isEmpty()) {
+      print_dest.print(F(" Idle\n"));
+    } else {
+      for(const auto& entry: _requestQueue) {
+        print_dest.printf_P(PSTR("\n- Request %X [%X], state %d"), (intptr_t) entry, (intptr_t) entry->_client, entry->_parseState);
+        if (entry->_response) {
+          auto r = entry->_response;
+          print_dest.printf_P(PSTR(" -- Response %X, state %d, [%d %d - %d %d %d]"), (intptr_t) r, r->_state, r->_headLength, r->_contentLength, r->_sentLength, r->_ackedLength, r->_writtenLength);
+        }
       }
+      print_dest.write('\n');
     }
   }
-  buf[sizeof(buf)-1] = 0; // just in case
-  dest.print(F("Web server status:"));
-  if (buf[0]) {
-    dest.println(buf);
-  } else {
-    dest.println(F(" Idle"));
-  }
+  #ifdef ASYNCWEBSERVER_NEEDS_MUTEX
+  print_dest.write('\0'); // null terminate
+  dest.print(print_dest.data());
+  #endif
 }
