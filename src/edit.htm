@@ -384,11 +384,11 @@ function createTree(element, editor){
     };
   }
 
-  function createTreeLeaf(path, name, size){
+  function createTreeLeaf(fullPath, displayName, size){
     var leaf = ce("li");
-    leaf.id = name;
+    leaf.id = fullPath;
     var label = ce("span");
-    label.innerHTML = name;
+    label.innerHTML = displayName;
     leaf.appendChild(label);
     leaf.onclick = function(e){
       if(isTextFile(leaf.id.toLowerCase())){
@@ -405,11 +405,11 @@ function createTree(element, editor){
     return leaf;
   }
 
-  function createTreeBranch(path, name){
+  function createTreeBranch(fullPath, displayName){
     var branch = ce("li");
     branch.className = "branch";
     var label = ce("span");
-    label.innerHTML = "\u{1F4C1} " + name;
+    label.innerHTML = "\u{1F4C1} " + displayName;
     label.style.cursor = "pointer";
     branch.appendChild(label);
     var loaded = false;
@@ -417,7 +417,7 @@ function createTree(element, editor){
       e.stopPropagation();
       if(!loaded){
         loaded = true;
-        httpGet(branch, name);
+        httpGet(branch, fullPath);
       } else {
         var sub = branch.querySelector("ul");
         if(sub) sub.style.display = sub.style.display === "none" ? "" : "none";
@@ -426,7 +426,7 @@ function createTree(element, editor){
     branch.oncontextmenu = function(e){
       e.preventDefault();
       e.stopPropagation();
-      showContextMenu(e, name, true);
+      showContextMenu(e, fullPath, true);
     };
     return branch;
   }
@@ -437,10 +437,12 @@ function createTree(element, editor){
     parent.appendChild(list);
     var ll = items.length;
     for(var i = 0; i < ll; i++){
+      var itemPath = (path === "/") ? items[i].name : path + items[i].name;
+      var displayName = items[i].name.replace(/^\//, '');
       if(items[i].type === "dir")
-        list.appendChild(createTreeBranch(path, items[i].name));
+        list.appendChild(createTreeBranch(itemPath, displayName));
       else if(items[i].type === "file")
-        list.appendChild(createTreeLeaf(path, items[i].name, items[i].size));
+        list.appendChild(createTreeLeaf(itemPath, displayName, items[i].size));
     }
 
   }
