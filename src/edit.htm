@@ -405,13 +405,41 @@ function createTree(element, editor){
     return leaf;
   }
 
+  function createTreeBranch(path, name){
+    var branch = ce("li");
+    branch.className = "branch";
+    var label = ce("span");
+    label.innerHTML = "\u{1F4C1} " + name;
+    label.style.cursor = "pointer";
+    branch.appendChild(label);
+    var loaded = false;
+    label.onclick = function(e){
+      e.stopPropagation();
+      if(!loaded){
+        loaded = true;
+        httpGet(branch, name);
+      } else {
+        var sub = branch.querySelector("ul");
+        if(sub) sub.style.display = sub.style.display === "none" ? "" : "none";
+      }
+    };
+    branch.oncontextmenu = function(e){
+      e.preventDefault();
+      e.stopPropagation();
+      showContextMenu(e, name, true);
+    };
+    return branch;
+  }
+
   function addList(parent, path, items){
     sortByKey(items, 'name');
     var list = ce("ul");
     parent.appendChild(list);
     var ll = items.length;
     for(var i = 0; i < ll; i++){
-      if(items[i].type === "file")
+      if(items[i].type === "dir")
+        list.appendChild(createTreeBranch(path, items[i].name));
+      else if(items[i].type === "file")
         list.appendChild(createTreeLeaf(path, items[i].name, items[i].size));
     }
 
