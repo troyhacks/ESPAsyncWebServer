@@ -157,8 +157,11 @@ AsyncWebServer::AsyncWebServer(IPAddress addr, uint16_t port, const AsyncWebServ
     auto heap_avail = get_heap_available();
     auto heap_alloc = get_heap_alloc();
 
+    // Test for heap exhaustion
+    // Note that heap_alloc == 0 indicates heap corruption, not necessarily exhaustion;
+    // in this case, we ignore the check and hope for the best.
     if ((heap_avail < ASYNCWEBSERVER_MINIMUM_HEAP)
-        || (heap_alloc < ASYNCWEBSERVER_MINIMUM_ALLOC)) {
+        || (heap_alloc && (heap_alloc < ASYNCWEBSERVER_MINIMUM_ALLOC))) {
       // Protect ourselves from crashing - just abandon this request.
       DEBUG_PRINTFP("*** Dropping client %08X (%d): %d, %d/%d\n", (intptr_t) c, c->getRemotePort(), _requestQueue.length(), heap_alloc, heap_avail);
       c->close(true);
