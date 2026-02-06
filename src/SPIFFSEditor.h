@@ -12,11 +12,12 @@ class SPIFFSEditor: public AsyncWebHandler {
   private:
     fs::FS _fs;
     String _username;
-    String _password; 
+    String _password;
+    String _uri;
     bool _authenticated;
     uint32_t _startTime;
   public:
-    SPIFFSEditor(const fs::FS& fs, const String& username=String(), const String& password=String());
+    SPIFFSEditor(const fs::FS& fs, const String& username=String(), const String& password=String(), const String& uri="/edit");
 #ifdef ESP8266
     // Alternate constructor, defaults to LittleFS
     SPIFFSEditor(const String& username=String(), const String& password=String(), const fs::FS& fs=LittleFS);

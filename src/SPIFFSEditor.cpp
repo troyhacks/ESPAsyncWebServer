@@ -270,10 +270,11 @@ static const byte edit_htm_gz[] PROGMEM  = {
 
 // WEB HANDLER IMPLEMENTATION
 
-SPIFFSEditor::SPIFFSEditor(const fs::FS& fs, const String& username, const String& password)
+SPIFFSEditor::SPIFFSEditor(const fs::FS& fs, const String& username, const String& password, const String& uri)
 :_fs(fs)
 ,_username(username)
 ,_password(password)
+,_uri(uri)
 ,_authenticated(false)
 ,_startTime(0)
 {}
@@ -283,7 +284,7 @@ SPIFFSEditor::SPIFFSEditor(const String& username, const String& password, const
 #endif
 
 bool SPIFFSEditor::canHandle(AsyncWebServerRequest *request){
-  if(request->url().equalsIgnoreCase(F("/edit"))){
+  if(request->url().equalsIgnoreCase(_uri)){
     if(request->method() == HTTP_GET){
       if(request->hasParam("list"))
         return true;
