@@ -133,6 +133,7 @@
 }
 </style>
 <script>
+var editBase = window.location.pathname;
 if (typeof XMLHttpRequest === "undefined") {
   XMLHttpRequest = function () {
     try { return new ActiveXObject("Msxml2.XMLHTTP.6.0"); } catch (e) {}
@@ -269,7 +270,7 @@ function createFileUploader(element, tree, editor){
   function createPath(p){
     var formData = new FormData();
     formData.append("path", p);
-    requests.add("PUT", "/edit", formData, httpPostProcessRequest);
+    requests.add("PUT", editBase, formData, httpPostProcessRequest);
   }
   
   mkfile.onclick = function(e){
@@ -292,7 +293,7 @@ function createFileUploader(element, tree, editor){
     }
     var formData = new FormData();
     formData.append("data", input.files[0], path.value);
-    requests.add("POST", "/edit", formData, httpPostProcessRequest);
+    requests.add("POST", editBase, formData, httpPostProcessRequest);
     var uploadPath= ge("upload-path");
     uploadPath.value="/";
     var uploadSelect= ge("upload-select");
@@ -317,7 +318,7 @@ function createTree(element, editor){
   ge(element).appendChild(treeRoot);
 
   function loadDownload(path){
-    ge('download-frame').src = "/edit?download="+path;
+    ge('download-frame').src = editBase+"?download="+path;
   }
 
   function loadPreview(path){
@@ -325,7 +326,7 @@ function createTree(element, editor){
     edfname.value=path;
     ge("editor").style.display = "none";
     preview.style.display = "block";
-    preview.innerHTML = '<img src="/edit?edit='+path+'&_cb='+Date.now()+'" style="max-width:100%; max-height:100%; margin:auto; display:block;" />';
+    preview.innerHTML = '<img src="'+editBase+'?edit='+path+'&_cb='+Date.now()+'" style="max-width:100%; max-height:100%; margin:auto; display:block;" />';
   }
 
   function fillFileMenu(el, path){
@@ -477,7 +478,7 @@ function createTree(element, editor){
   function httpDelete(filename){
     var formData = new FormData();
     formData.append("path", filename);
-    requests.add("DELETE", "/edit", formData, delCb(filename));
+    requests.add("DELETE", editBase, formData, delCb(filename));
   }
 
   function getCb(parent, path){
@@ -488,7 +489,7 @@ function createTree(element, editor){
   }
 
   function httpGet(parent, path){
-    requests.add("GET", "/edit", { list: path }, getCb(parent, path));
+    requests.add("GET", editBase, { list: path }, getCb(parent, path));
   }
 
   httpGet(treeRoot, "/");
@@ -543,7 +544,7 @@ function createEditor(element, file, lang, theme, type){
   function httpPost(filename, data, type){
     var formData = new FormData();
     formData.append("data", new Blob([data], { type: type }), filename);
-    requests.add("POST", "/edit", formData, httpPostProcessRequest);
+    requests.add("POST", editBase, formData, httpPostProcessRequest);
   }
   function httpGetProcessRequest(status, responseText){
       ge("preview").style.display = "none";
@@ -555,7 +556,7 @@ function createEditor(element, file, lang, theme, type){
       editor.clearSelection();
   }
   function httpGet(theUrl){
-      requests.add("GET", "/edit", { edit: theUrl }, httpGetProcessRequest);
+      requests.add("GET", editBase, { edit: theUrl }, httpGetProcessRequest);
   }
 
   if(lang !== "plain") editor.getSession().setMode("ace/mode/"+lang);
