@@ -412,14 +412,16 @@ size_t AsyncAbstractResponse::_ack(AsyncWebServerRequest *request, size_t len, u
     }
     _packet.resize(outLen);
 
-    if(_packet.size()){      
+    if(_packet.size()){
         auto acceptedLen = request->client()->write((const char*)_packet.data(), _packet.size());
         _writtenLength += acceptedLen;
         _packet.advance(acceptedLen);
         if (acceptedLen < outLen) {
           DEBUG_PRINTFP("(%08x)IW%d/%d\nH:%d/%d\nS:%d\n", (intptr_t) this, acceptedLen, outLen, _max_heap_alloc(), ESP.getFreeHeap(), request->client()->space());
-          // Try again, with less.
-          acceptedLen = request->client()->write((const char*)_packet.data(), std::min(outLen/2, (size_t)TCP_MSS));
+          // Try again, with the bytes actually remaining in the packet (NOT a fresh
+          // outLen/2 — that would read past the valid data when most of the packet
+          // was already written, causing heap garbage to be appended to the body).
+          acceptedLen = request->client()->write((const char*)_packet.data(), std::min(_packet.size(), (size_t)TCP_MSS));
           _writtenLength += acceptedLen;
           _packet.advance(acceptedLen);
         }
