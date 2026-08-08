@@ -1,17 +1,11 @@
 #include "DynamicBuffer.h"
 #include <numeric>
 
-//#define DYNAMICBUFFER_USE_PSRAM
-
-#if defined(ESP32) && !defined(DYNAMICBUFFER_USE_PSRAM)
 // On ESP32, prefer PSRAM for DynamicBuffer allocations when it is available.
 // ESP32-P4 PSRAM is essentially as fast as internal RAM, and large internal
 // allocations would otherwise starve lwIP / WiFi / the rest of the system on
 // pixel-dense boards.  Falls back to internal RAM when PSRAM is not present.
-#define dynamicbuffer_alloc(x) heap_caps_malloc_prefer(x, 2, MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT, MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT)
-#define dynamicbuffer_realloc(ptr, x) heap_caps_realloc_prefer(ptr, x, 2, MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT, MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT)
-#define dynamicbuffer_free(x) heap_caps_free(x)
-#elif defined(DYNAMICBUFFER_USE_PSRAM)
+#ifdef ESP32
 #define dynamicbuffer_alloc(x) heap_caps_malloc_prefer(x, 2, MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT, MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT)
 #define dynamicbuffer_realloc(ptr, x) heap_caps_realloc_prefer(ptr, x, 2, MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT, MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT)
 #define dynamicbuffer_free(x) heap_caps_free(x)
