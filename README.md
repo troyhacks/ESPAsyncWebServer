@@ -10,6 +10,10 @@ Also embedded ace.js and its modules - this increases the build size but IDGAF.
 
 If you've ever been off-grid and notice /edit doesn't work, you'll understand why I did this.
 
+If you make any edits to the files in "embeds", open a terminal and run `npm install` and then `npm run build` to rebuild those files into "embeds_data.h"
+
+If you don't need to edit those files, there's no need to do anything.
+
 ## Original intro: 
 
 Async HTTP and WebSocket Server for ESP8266 Arduino
