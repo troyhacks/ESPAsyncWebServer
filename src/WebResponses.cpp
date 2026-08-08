@@ -298,18 +298,32 @@ static size_t _max_heap_alloc() {
   return result;
 }
 
-static DynamicBuffer _safe_allocate_buffer(size_t outLen) {   
-  // Espressif lwip configuration always copies in to the TCP stack, so 
+static DynamicBuffer _safe_allocate_buffer(size_t outLen) {
+  // Espressif lwip configuration always copies in to the TCP stack, so
   // we have to have enough room to allocate the copy buffer.  It's too bad we
   // can't re-use our assembly buffer, but it is what it is.
-  auto rv = DynamicBuffer(outLen);
-  if (outLen > TCP_MSS) {
-    // Validate that there's enough space to allocate the copy buffer
-    if (!rv || (_max_heap_alloc() < outLen)) {
-        // Try allocating a single packet's worth instead
-        rv.clear();
-        rv.resize(TCP_MSS);
-    }
+  //
+  // CAP TO TCP_MSS: lwIP's tcp_write() may allocate multiple pbufs for a
+  // single call.  If pbuf allocation fails mid-write, tcp_write() returns
+  // ERR_MEM after having already queued some bytes — but the caller
+  // (AsyncClient::add) sees a full failure and returns 0.  AsyncClient::write()
+  // then returns 0, even though add() actually queued bytes; the caller
+  // doesn't know how many were queued, so the retry re-add()s the SAME data,
+  // producing duplicates that land later in the response and shift the tail
+  // of the body by the duplicated chunk size.  Limiting our write to a single
+  // pbuf (TCP_MSS) makes partial success atomic — either the one pbuf is
+  // allocated or nothing is — so the return value accurately reflects what
+  // was queued.
+  //
+  // The buffer itself is allocated from PSRAM when available (see
+  // DynamicBuffer.cpp) so we don't fragment internal RAM on pixel-dense
+  // builds like ESP32-P4 with WLED.
+  size_t allocSize = std::min(outLen, (size_t)TCP_MSS);
+  auto rv = DynamicBuffer(allocSize);
+  if (!rv) {
+    // Allocation failed; try a smaller fallback
+    rv.clear();
+    rv.resize(allocSize / 2);
   }
   return rv;
 }
