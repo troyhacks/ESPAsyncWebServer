@@ -2,6 +2,16 @@
 [![Build Status](https://travis-ci.org/Aircoookie/ESPAsyncWebServer.svg?branch=master)](https://travis-ci.org/Aircoookie/ESPAsyncWebServer) ![](https://github.com/Aircoookie/ESPAsyncWebServer/workflows/ESP%20Async%20Web%20Server%20CI/badge.svg) [![Codacy Badge](https://api.codacy.com/project/badge/Grade/395dd42cfc674e6ca2e326af3af80ffc)](https://www.codacy.com/manual/Aircoookie/ESPAsyncWebServer?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=Aircoookie/ESPAsyncWebServer&amp;utm_campaign=Badge_Grade)
 
 
+## Updates by TroyHacks:
+
+Added node.js functions like WLED uses to rebuild edit.htm if there's changes. 
+
+Also embedded ace.js and its modules - this increases the build size but IDGAF.
+
+If you've ever been off-grid and notice /edit doesn't work, you'll understand why I did this.
+
+## Original intro: 
+
 Async HTTP and WebSocket Server for ESP8266 Arduino
 
 For ESP8266 it requires [ESPAsyncTCP](https://github.com/me-no-dev/ESPAsyncTCP)

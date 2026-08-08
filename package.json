@@ -1,0 +1,14 @@
+{
+  "name": "espasyncwebserver-embeds",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Builds the gzip-compressed C byte arrays for the web assets embedded in src/SPIFFSEditor.cpp.",
+  "scripts": {
+    "build": "node cdata.js",
+    "watch": "node --watch cdata.js"
+  },
+  "engines": {
+    "node": ">=11"
+  },
+  "dependencies": {}
+}
