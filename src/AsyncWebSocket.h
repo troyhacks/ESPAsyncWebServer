@@ -40,6 +40,51 @@
 
 #include "DynamicBuffer.h"
 
+// The CLIENTS LIST IS GUARDED.
+//
+// A client is DELETED when its connection drops, and the delete happens
+// inside the list's removal:
+//
+//   AsyncWebSocketClient::_onDisconnect()
+//     -> AsyncWebSocket::_handleDisconnect(this)
+//          -> _clients.remove_first(...)      <- the node is unlinked, and
+//                                               the client is DELETED
+//          -> ~AsyncWebSocketClient()
+//               -> _handleEvent(WS_EVT_DISCONNECT)   <- the application's
+//                                                       handler, LAST
+//
+// So the client is already gone by the time the application's own
+// disconnect handler runs, and a lock in that handler cannot help.  And
+// the application's own use is a race against that delete:
+//
+//   AsyncWebSocketClient* c = client(id);   <- the list is walked
+//   if (c) c->queueLength();                <- the client is used
+//
+// The walk follows the list's nodes, and the removal frees them, so the
+// walk can follow a freed node - and the client it returned can be
+// deleted before it is used.
+//
+// MEASURED (2026-11-25, on a WLED P4): a load access fault in
+// AsyncWebSocketClient::queueLength(), called from the application's
+// tempo push.
+//
+// So every change of the list takes the lock, and the APPLICATION takes
+// it around its own fetch-and-use - which is why it is exposed here.
+// The two have to be the SAME lock: the application's own lock and the
+// library's removal cannot be two different locks.
+//
+// The lock is RECURSIVE, because the library holds it while it removes a
+// client, and the removal calls the application's disconnect handler,
+// which takes the lock again.
+//
+// The lock is only for the ESP32, which is the only target with
+// FreeRTOS.  Without it the library behaves exactly as it did.
+#if defined(ESP32) && !defined(ASYNCWEBSOCKET_NO_CLIENT_LOCK)
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
+#define WLED_ASYNCWS_CLIENT_LOCK 1
+#endif
+
 #ifdef ESP8266
 #include <Hash.h>
 #ifdef CRYPTO_HASH_h // include Hash.h from espressif framework if the first include was from the crypto library
@@ -271,6 +316,11 @@ class AsyncWebSocket: public AsyncWebHandler {
     uint32_t _cNextId;
     AwsEventHandler _eventHandler;
     bool _enabled;
+#ifdef WLED_ASYNCWS_CLIENT_LOCK
+    // The lock that guards the clients list - see the note at the top of
+    // this file.
+    mutable SemaphoreHandle_t _clientsLock = nullptr;
+#endif
 
   public:
     AsyncWebSocket(const String& url);
@@ -278,6 +328,16 @@ class AsyncWebSocket: public AsyncWebHandler {
     const char * url() const { return _url.c_str(); }
     void enable(bool e){ _enabled = e; }
     bool enabled() const { return _enabled; }
+#ifdef WLED_ASYNCWS_CLIENT_LOCK
+    // The APPLICATION takes this around its own fetch and use of a
+    // client:  lockClients(); ... client(id) ... use ... unlockClients();
+    //
+    // It has to be this lock and not one of the application's own: the
+    // library's removal of a client has to be excluded from the window
+    // between the fetch and the use.
+    void lockClients() const { if(_clientsLock) xSemaphoreTakeRecursive(_clientsLock, portMAX_DELAY); }
+    void unlockClients() const { if(_clientsLock) xSemaphoreGiveRecursive(_clientsLock); }
+#endif
     bool availableForWriteAll();
     bool availableForWrite(uint32_t id);
 
@@ -355,6 +415,9 @@ class AsyncWebSocket: public AsyncWebHandler {
     AsyncWebSocketMessageBuffer* makeBuffer(const uint8_t * data, size_t size)  __attribute__((deprecated));
     void _cleanBuffers() {};
 
+    // The list itself.  It is NOT guarded: the reference outlives any
+    // lock the caller could take, so an application that walks it must
+    // hold lockClients() for the whole walk.
     const AsyncWebSocketClientLinkedList& getClients() const;
 };
 
