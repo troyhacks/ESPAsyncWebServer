@@ -389,14 +389,26 @@ AsyncWebSocketClient::AsyncWebSocketClient(AsyncWebServerRequest *request, Async
   _client->onData([](void *r, AsyncClient* c, void *buf, size_t len){ (void)c; ((AsyncWebSocketClient*)(r))->_onData(buf, len); }, this);
   _client->onPoll([](void *r, AsyncClient* c){ (void)c; ((AsyncWebSocketClient*)(r))->_onPoll(); }, this);
   _server->_addClient(this);
+  // The frame info is cleared before the application is told about the
+  // connection, so a handler that reads it does not see the leftovers of
+  // whatever came before.
+  memset(&_pinfo, 0, sizeof(_pinfo));
   _server->_handleEvent(this, WS_EVT_CONNECT, request, NULL, 0);
   delete request;
 }
 
 AsyncWebSocketClient::~AsyncWebSocketClient(){
+  // The disconnect event is normally raised by the server, before the client
+  // is removed - so the application's handler sees a client that is still
+  // whole.  It is raised here only for the client that is deleted without
+  // going that way: the websocket itself is going away.  It is raised before
+  // the queues are freed, so even here the application gets a client that is
+  // not yet half gone.
+  if(!_disconnectNotified){
+    _server->_handleEvent(this, WS_EVT_DISCONNECT, NULL, NULL, 0);
+  }
   _messageQueue.free();
   _controlQueue.free();
-  _server->_handleEvent(this, WS_EVT_DISCONNECT, NULL, NULL, 0);
 }
 
 void AsyncWebSocketClient::_onAck(size_t len, uint32_t time){
@@ -896,6 +908,18 @@ void AsyncWebSocket::_handleDisconnect(AsyncWebSocketClient * client){
   // client: an application that is using a client must not have it
   // deleted under its feet.
   ASYNC_WS_CLIENTS_GUARD(guard);
+
+  // The application's disconnect event is raised HERE, before the client is
+  // removed - because the removal DELETES it.
+  //
+  // It used to be raised from the client's destructor, which is after the
+  // removal and after the client's members are gone.  So an application
+  // that read anything from the client in its handler - its id, say - was
+  // reading a half-destroyed object.  That is a use-after-free of its own,
+  // and it happens exactly when the application is least able to cope:
+  // a client that drops while the application is talking to it.
+  _handleEvent(client, WS_EVT_DISCONNECT, NULL, NULL, 0);
+  client->_markDisconnectNotified();
 
   _clients.remove_first([=](AsyncWebSocketClient * c){
     return c->id() == client->id();

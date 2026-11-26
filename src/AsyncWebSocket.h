@@ -47,15 +47,26 @@
 //
 //   AsyncWebSocketClient::_onDisconnect()
 //     -> AsyncWebSocket::_handleDisconnect(this)
+//          -> _handleEvent(WS_EVT_DISCONNECT)  <- the application's
+//                                                   handler, while the
+//                                                   client is still whole
 //          -> _clients.remove_first(...)      <- the node is unlinked, and
 //                                               the client is DELETED
 //          -> ~AsyncWebSocketClient()
-//               -> _handleEvent(WS_EVT_DISCONNECT)   <- the application's
-//                                                       handler, LAST
 //
-// So the client is already gone by the time the application's own
-// disconnect handler runs, and a lock in that handler cannot help.  And
-// the application's own use is a race against that delete:
+// The application's disconnect event used to be raised from the client's
+// DESTRUCTOR - which is after the removal, and after the client's
+// members are gone.  So an application that read anything from the
+// client in its handler - its id, say - was reading a half-destroyed
+// object.  That is a use-after-free of its own, and it happens exactly
+// when the application is least able to cope: a client that drops
+// while the application is talking to it.
+//
+// MEASURED (2026-11-26, on a WLED P4): "Load address misaligned" in
+// LinkedList<AsyncWebSocketMessage*>::length(), called from
+// AsyncWebSocketClient::queueLength().
+//
+// The application's own use is a race against the delete:
 //
 //   AsyncWebSocketClient* c = client(id);   <- the list is walked
 //   if (c) c->queueLength();                <- the client is used
@@ -63,10 +74,6 @@
 // The walk follows the list's nodes, and the removal frees them, so the
 // walk can follow a freed node - and the client it returned can be
 // deleted before it is used.
-//
-// MEASURED (2026-11-25, on a WLED P4): a load access fault in
-// AsyncWebSocketClient::queueLength(), called from the application's
-// tempo push.
 //
 // So every change of the list takes the lock, and the APPLICATION takes
 // it around its own fetch-and-use - which is why it is exposed here.
@@ -231,6 +238,12 @@ class AsyncWebSocketClient {
     uint8_t _partialHeader[WS_MAX_HEADER_LEN];
     uint8_t _partialHeaderLen;
 
+    // The server raises the disconnect event before it removes the client,
+    // so the application's handler sees a client that is still whole.  This
+    // says that it has been raised, so the destructor does not raise it a
+    // second time - and so an application is told exactly once.
+    bool _disconnectNotified = false;
+
     uint32_t _lastMessageTime;
     uint32_t _keepAlivePeriod;
 
@@ -250,6 +263,11 @@ class AsyncWebSocketClient {
     AsyncClient* client(){ return _client; }
     AsyncWebSocket *server(){ return _server; }
     AwsFrameInfo const &pinfo() const { return _pinfo; }
+
+    //system callback (do not call): the server tells the client that the
+    //disconnect event has been raised, so the destructor does not raise it
+    //a second time.
+    void _markDisconnectNotified(){ _disconnectNotified = true; }
 
     IPAddress remoteIP();
     uint16_t  remotePort();
